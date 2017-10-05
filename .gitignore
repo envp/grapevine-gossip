@@ -21,4 +21,4 @@ erl_crash.dump
 
 # Project's binaries
 project2
-grapevine
+./grapevine
