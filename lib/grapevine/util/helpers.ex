@@ -26,8 +26,23 @@ defmodule Grapevine.Util.Helpers do
   def print_loop do
     receive do
       {:print, value} ->
-        Logger.info value
+        Logger.debug value
     end
     print_loop()
+  end
+
+  def enumerate_rows(enumerable, row_len) do
+    Enum.chunk_every(enumerable, row_len)
+  end
+
+  defp transpose([[] | _]), do: []
+  defp transpose(mat) do
+    [:lists.map(&hd(&1), mat) | transpose(:lists.map(&tl(&1), mat))]
+  end
+
+  def enumerate_cols(enumerable, row_len) do
+    # All hail haskell
+    # http://stackoverflow.com/questions/5389254/transposing-a-2-dimensional-matrix-in-erlang
+    transpose(enumerate_rows(enumerable, row_len))
   end
 end
