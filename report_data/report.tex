@@ -21,7 +21,7 @@
     \maketitle
 
     \section{Gossip}
-
+    From running times it is seen that the fastest topologies is one between Imperfect 2D grid and 2D grid, followed by the fully connected topology, then the line.
     \begin{figure}[h]
       \caption{Gossip Convergence Time v/s Network size}
       \includegraphics[width=\textwidth]{project2_gossip_chart}
@@ -42,12 +42,14 @@
     \end{enumerate}
 
     \section{Push-sum}
+    While the graph for line may indicate that it converges to a suitable value very quickly, it is not to be trusted beyond networks of size 100-200 after which the variance among ``converged'' values is too high to be of any use.
+
     \begin{figure}[h]
       \caption{Push-sum Convergence Time v/s Network size}
       \includegraphics[width=\textwidth]{project2_psum_chart}
     \end{figure}
 
-    Covergence rates from the data extracted resemble the following. Note that data for line is not clean since it doesn't actually converge to any correct value, and results in more timeouts than actual results.
+    Covergence rates from the data extracted resemble the following.
     \begin{enumerate}
       \item{Line: $O(n)$}
       \item{Full: $O(n^2)$}
