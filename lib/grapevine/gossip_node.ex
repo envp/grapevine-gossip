@@ -32,15 +32,15 @@ defmodule Grapevine.GossipNode do
   end
 
   def get_peers(pid) do
-    GenServer.call(pid, :get_peers)
+    GenServer.call(pid, :get_peers, 1_000_000)
   end
 
   def get_status(pid) do
-    GenServer.call(pid, :get_status)
+    GenServer.call(pid, :get_status, 1_000_000)
   end
 
   def get_ratio(pid) do
-    GenServer.call(pid, :get_ratio)
+    GenServer.call(pid, :get_ratio, 1_000_000)
   end
 
   def relay(pid, :gossip, rumour) do
@@ -51,44 +51,57 @@ defmodule Grapevine.GossipNode do
 
   def relay(pid, :psum, %{s: s, w: w}) do
     GenServer.cast(pid, {:psum, %{s: s, w: w}})
+
+    Process.send_after(pid, {:resend, :psum}, @resend_delay)
   end
 
   # Picks a random peer and relays a message to it
   def transmit(:gossip, data, state) do
-    case state.status do
-      :inactive ->
-        state
-      status when status in [:active, :infected] ->
+    cond do
+      state.status in [:active, :infected] and state.peers != [] ->
         # chosen_one = Enum.random(Enum.filter(state.peers, fn e -> get_status(e) != :inactive end))
         chosen_one = Enum.random(state.peers)
         relay(chosen_one, :gossip, data)
 
-        if state.count + 1 >= state.psum_saturation do
+        if state.count + 1 >= state.saturation do
+          for pid <- state.peers do
+            send pid, {:remove_peer, self()}
+          end
           %{state | count: state.count + 1, status: :inactive}
         else
           %{state | count: state.count + 1, status: :infected}
         end
+        state.status in [:active, :infected] ->
+          %{state | count: state.count + 1, status: :inactive}
+        state.status == :inactive ->
+          state
     end
   end
 
   def transmit(:psum, %{s: s, w: w}, state) do
     # Update local sum values
     new_data = %{s: 0.5 * (state.data.s + s), w: 0.5 * (state.data.w + w)}
-    case state.status do
-      :inactive ->
-        state
-      _ ->
+    cond do
+      state.status in [:active, :infected] and state.peers != [] ->
         change = abs(new_data.s / new_data.w - state.data.s / state.data.w)
         count = if change < 1.0e-10, do: state.count + 1, else: 0
-
+        chosen_one = Enum.random(state.peers)
+        relay(chosen_one, :psum, new_data)
         cond do
           count >= state.psum_saturation ->
+            for pid <- state.peers do
+              send pid, {:remove_peer, self()}
+            end
             %{state | count: count, status: :inactive, data: new_data}
           true ->
-            chosen_one = Enum.random(state.peers)
-            relay(chosen_one, :psum, new_data)
             %{state | count: count, status: :infected, data: new_data}
         end
+      state.peers == [] ->
+        %{state | status: :inactive}
+      state.status == :inactive ->
+        # chosen_one = Enum.random(state.peers)
+        # relay(chosen_one, :psum, %{s: 2*s, w: 2*w})
+        state
     end
   end
 
@@ -144,13 +157,27 @@ defmodule Grapevine.GossipNode do
     {:noreply, new_state}
   end
 
-  def handle_info({:resend, algorithm, data}, node_state) do
-    new_state = transmit(algorithm, data, node_state)
+  def handle_info({:resend, :gossip, data}, node_state) do
+    new_state = transmit(:gossip, data, node_state)
     if new_state.status != node_state.status do
       send Grapevine.Simulator, {:status, new_state.idx, new_state.status}
     end
-    Process.send_after(self(), {:resend, algorithm, data}, @resend_delay)
+    Process.send_after(self(), {:resend, :gossip, data}, @resend_delay)
 
     {:noreply, new_state}
+  end
+
+  def handle_info({:resend, :psum}, node_state) do
+    new_state = transmit(:psum, node_state.data, node_state)
+    if new_state.status != node_state.status do
+      send Grapevine.Simulator, {:status, new_state.idx, new_state.status}
+    end
+    Process.send_after(self(), {:resend, :psum}, @resend_delay)
+
+    {:noreply, new_state}
+  end
+
+  def handle_info({:remove_peer, pid}, node_state) do
+    {:noreply, %{node_state | peers: List.delete(node_state.peers, pid)}}
   end
 end

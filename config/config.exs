@@ -18,8 +18,10 @@ use Mix.Config
 #
 # You can also configure a 3rd-party app:
 #
-if Mix.env == :prod do
-  config :logger, level: :error
+case Mix.env do
+  :prod -> config :logger, level: :error
+  :dev -> config :logger, level: :info
+  _ -> nil
 end
 #
 

@@ -4,6 +4,8 @@ defmodule Grapevine.Simulator do
   """
   use GenServer
 
+  require Integer
+
   alias Grapevine.GossipNode
   alias Grapevine.Util.Helpers
 
@@ -135,24 +137,37 @@ defmodule Grapevine.Simulator do
   end
 
   def handle_call(:get_ratio, _from, state) do
-    ratio = List.keyfind(Enum.with_index(state.pool_status), :inactive, 0)
-    |> elem(1)
-    |> :lists.nth(state.pool)
-    |> GossipNode.get_ratio
+    ratios = state.pool_status
+    |> Enum.with_index
+    |> Enum.map(fn {e, idx} -> if e == :inactive, do: idx end)
+    |> Enum.filter(fn idx -> !is_nil(idx) end)
+    |> Enum.map(fn idx -> :lists.nth(idx + 1, state.pool) end)
+    |> Enum.map(fn pid -> GossipNode.get_ratio(pid) end)
 
-    {:reply, ratio, state}
+    mean = Enum.sum(ratios) / length(ratios)
+    # median = if Integer.is_even(length(ratios)) do
+    #   0.5 * (:lists.nth(div(length(ratios), 2), Enum.sort(ratios)) + :lists.nth(div(length(ratios), 2) + 1, Enum.sort(ratios)))
+    # else
+    #   :lists.nth(div(length(ratios) + 1, 2) + 1, Enum.sort(ratios))
+    # end
+    # variance = (ratios |> Enum.map(&:math.pow((&1 - mean), 2)) |> Enum.sum) / length(ratios)
+    # min = Enum.min(ratios)
+    # max = Enum.max(ratios)
+    # ratio = ratios |> Enum.filter(fn r -> abs(r - mean) < variance end)
+    # ratio = Enum.sum(ratio) / length(ratio)
+    {:reply, mean, state}
   end
 
   def handle_cast({:inject, start_idx, rumour}, state) do
     chosen_one = :lists.nth(start_idx + 1, state.pool)
     GossipNode.relay(chosen_one, :gossip, rumour)
-    {:noreply, %{state | start_time: :erlang.now()}}
+    {:noreply, %{state | start_time: :os.timestamp()}}
   end
 
   def handle_cast({:start_psum, start_idx, %{s: s, w: w}}, state) do
     chosen_one = :lists.nth(start_idx + 1, state.pool)
     GossipNode.relay(chosen_one, :psum, %{s: s, w: w})
-    {:noreply, %{state | start_time: :erlang.now()}}
+    {:noreply, %{state | start_time: :os.timestamp()}}
   end
 
   def handle_info({:status, node_idx, status}, state) do
@@ -161,7 +176,6 @@ defmodule Grapevine.Simulator do
 
     {did_converge, end_time} = unless state.converged do
       send :printer, {:print, "<plotty: #{status}, #{node_idx + 1}>"}
-
       frac_active =   (counts[:active] || 0) / state.num_nodes
       frac_inactive = (counts[:inactive] || 0) / state.num_nodes
       # frac_infected = (counts[:infected] || 0) / state.num_nodes
@@ -169,20 +183,18 @@ defmodule Grapevine.Simulator do
       converge = case state.algorithm do
         :gossip -> frac_inactive > 0.5 || frac_active < 0.01
         # First node that converges
-        :psum   -> status == :inactive
-        _ -> false
+        :psum   -> frac_inactive > 0.5 #status == :inactive
       end
       # IO.write "#{inspect {frac_active, frac_infected, frac_inactive}}\n"
-      et = if converge, do: :erlang.now(), else: nil
+      et = if converge, do: :os.timestamp(), else: nil
 
       {converge, et}
     else
       {state.converged, state.end_time}
     end
     # IO.write(inspect {converge, et, counts, state.algorithm})
-    {:noreply, %{state |
-    converged: did_converge,
-    end_time: end_time,
-    pool_status: List.update_at(state.pool_status, node_idx, fn _ -> status end)}}
+    {:noreply, %{state | converged: did_converge,
+                         end_time: end_time,
+                         pool_status: List.update_at(state.pool_status, node_idx, fn _ -> status end)}}
   end
 end

@@ -26,7 +26,7 @@ defmodule Grapevine.Util.Helpers do
   def print_loop do
     receive do
       {:print, value} ->
-        Logger.debug value
+        Logger.info value
     end
     print_loop()
   end
