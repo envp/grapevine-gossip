@@ -11,8 +11,10 @@ defmodule Grapevine.CLI do
     unless Simulator.converged?(), do: block_till_converged()
   end
 
-  def main([num_nodes, topology, algorithm]) do
+  def main([num_nodes, topology, algorithm]), do: main([num_nodes, topology, algorithm, "0"])
+  def main([num_nodes, topology, algorithm, failure_rate]) do
     {num_nodes, ""} = Integer.parse(num_nodes)
+    {failure_rate, ""} = Float.parse(failure_rate)
 
     topology = Helpers.atom_for(:topology, topology)
     algorithm = Helpers.atom_for(:algorithm, algorithm)
@@ -26,7 +28,7 @@ defmodule Grapevine.CLI do
 
     Simulator.start_link({topology, algorithm})
     Logger.info "Populating topology \"#{topology}\" with #{num_nodes} nodes"
-    Simulator.populate(num_nodes)
+    Simulator.populate(num_nodes, failure_rate)
 
     # Start simulation
     case algorithm do

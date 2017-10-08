@@ -13,7 +13,8 @@ defmodule Grapevine.GossipNode do
             saturation: 10,
             status: :active,
             data: %{s: nil, w: 1},
-            psum_saturation: 3
+            psum_saturation: 3,
+            fprob: 0
 
   @resend_delay 100
 
@@ -55,9 +56,17 @@ defmodule Grapevine.GossipNode do
     Process.send_after(pid, {:resend, :psum}, @resend_delay)
   end
 
+  def set_fprob(pid, fprob) do
+    GenServer.cast(pid, {:set_fprob, fprob})
+  end
+
   # Picks a random peer and relays a message to it
-  def transmit(:gossip, data, state) do
+  defp transmit(:gossip, data, state) do
+    dice = :rand.uniform
     cond do
+      # Randomly do nothing
+      dice <= state.fprob ->
+        state
       state.status in [:active, :infected] and state.peers != [] ->
         # chosen_one = Enum.random(Enum.filter(state.peers, fn e -> get_status(e) != :inactive end))
         chosen_one = Enum.random(state.peers)
@@ -78,10 +87,15 @@ defmodule Grapevine.GossipNode do
     end
   end
 
-  def transmit(:psum, %{s: s, w: w}, state) do
+  defp transmit(:psum, %{s: s, w: w}, state) do
+    dice = :rand.uniform
+
     # Update local sum values
     new_data = %{s: 0.5 * (state.data.s + s), w: 0.5 * (state.data.w + w)}
     cond do
+      # Randomly do nothing
+      dice <= state.fprob ->
+        state
       state.status in [:active, :infected] and state.peers != [] ->
         change = abs(new_data.s / new_data.w - state.data.s / state.data.w)
         count = if change < 1.0e-10, do: state.count + 1, else: 0
@@ -123,6 +137,10 @@ defmodule Grapevine.GossipNode do
 
   def handle_call(:get_ratio, _from, node_state) do
     {:reply, node_state.data.s / node_state.data.w, node_state}
+  end
+
+  def handle_cast({:set_fprob, fprob}, state) do
+    {:noreply, %{state | fprob: fprob}}
   end
 
   # Add peers unidirectionally

@@ -34,8 +34,8 @@ defmodule Grapevine.Simulator do
     GenServer.call(__MODULE__, :did_converge, 1_000_000)
   end
 
-  def populate(num_nodes) do
-    GenServer.call(__MODULE__, {:populate, num_nodes}, 1_000_000)
+  def populate(num_nodes, fprob \\ 0) do
+    GenServer.call(__MODULE__, {:populate, num_nodes, fprob}, 1_000_000)
   end
 
   def inject_rumour(start_idx, rumour \\ :r) do
@@ -108,7 +108,7 @@ defmodule Grapevine.Simulator do
     {:reply, state.num_nodes, state}
   end
 
-  def handle_call({:populate, num_nodes}, _from, state) do
+  def handle_call({:populate, num_nodes, fprob}, _from, state) do
     # Round up to nearest square
     num_nodes = if state.topology in [:planar, :imp2D] do
       num_nodes |> :math.pow(0.5) |> :math.ceil |> :math.pow(2) |> round
@@ -121,6 +121,8 @@ defmodule Grapevine.Simulator do
     end
 
     pool = for idx <- 1..num_nodes, do: GossipNode.start_link(idx - 1, state.algorithm)
+
+    for pid <- pool, do: GossipNode.set_fprob(pid, fprob)
 
     # Each process in the pool starts with status :active
     pool_status = List.duplicate(:active, num_nodes)
