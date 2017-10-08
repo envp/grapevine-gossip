@@ -36,12 +36,12 @@ defmodule Grapevine.CLI do
     end
     block_till_converged()
 
-    case algorithm do
-      :gossip -> IO.puts "#{topology},#{algorithm},#{Simulator.get_node_count},#{Simulator.sim_time}"
-      :psum   -> IO.puts "#{topology},#{algorithm},#{Simulator.get_node_count},#{Simulator.sim_time},#{Simulator.get_ratio}"
-      _ -> nil
-    end
-    # IO.puts Simulator.sim_time
+    # case algorithm do
+    #   :gossip -> IO.puts "#{topology},#{algorithm},#{Simulator.get_node_count},#{Simulator.sim_time}"
+    #   :psum   -> IO.puts "#{topology},#{algorithm},#{Simulator.get_node_count},#{Simulator.sim_time},#{Simulator.get_ratio}"
+    #   _ -> nil
+    # end
+    IO.puts Simulator.sim_time
   end
   def main(_), do: Logger.error "Arguments must be: <numNodes> <topology> <algorithm>"
 end

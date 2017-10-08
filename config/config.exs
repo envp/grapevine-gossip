@@ -20,7 +20,7 @@ use Mix.Config
 #
 case Mix.env do
   :prod -> config :logger, level: :error
-  :dev -> config :logger, level: :info
+  :dev -> config :logger, level: :error
   _ -> nil
 end
 #
